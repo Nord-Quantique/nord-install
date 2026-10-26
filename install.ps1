@@ -5,8 +5,10 @@
 # Installs what the Nord harness needs (Git for Windows, Python 3, the GitHub CLI, Claude Code),
 # signs you in to GitHub in the browser, then runs the Nord installer from the private
 # Nord-Quantique/Nord-Context-Harness repository through that sign-in. Anything already
-# installed is left alone, so running it again is safe. To try the installer from a branch of
-# the harness, set $env:NORD_REF = '<branch>' first (default: main).
+# installed (Git, Python, gh, Claude Code, wherever they are) is used as it is. A previous Nord
+# install, even one that stopped halfway, is listed with what removing it would lose, and you
+# choose: type wipe to remove it and install fresh, or press Enter to keep it and update it.
+# To try the installer from a branch of the harness, set $env:NORD_REF = '<branch>' first.
 #
 # `iex` runs this in your own PowerShell session; the script block keeps its settings and
 # variables out of it, and it never calls `exit`, which would close your window.
@@ -16,49 +18,83 @@
 
     function Have($cmd) { [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
 
-    # winget changes the registry PATH, not this session's; read it back after each install.
+    # winget changes the registry PATH, not this session's; read it back after each install, keeping
+    # what this window added of its own (a virtual environment, say) after it.
     function Update-SessionPath {
-        $env:Path = @(
-            [Environment]::GetEnvironmentVariable('Path', 'Machine'),
-            [Environment]::GetEnvironmentVariable('Path', 'User'),
-            (Join-Path $HOME '.local\bin')
-        ) -join ';'
+        $parts = @([Environment]::GetEnvironmentVariable('Path', 'Machine'),
+                   [Environment]::GetEnvironmentVariable('Path', 'User'),
+                   (Join-Path $HOME '.local\bin'), $env:Path) -join ';' -split ';'
+        $env:Path = ($parts | Where-Object { $_ } | Select-Object -Unique) -join ';'
     }
 
-    function Install-Package($id) {
-        Write-Host "Installing $id"
+    # Installs $id unless $find already finds $name (it returns where). winget answers a package it
+    # already has (in another version or scope) with an error code, so what counts is whether $find
+    # finds it afterwards.
+    function Ensure($name, $id, [scriptblock]$find) {
+        $at = & $find
+        if ($at) { Write-Host "$name already here: $at"; return }
+        Write-Host "Installing $name ($id)"
         winget install -e --id $id --source winget --accept-package-agreements --accept-source-agreements
-        if ($LASTEXITCODE -ne 0) { throw "winget could not install $id (exit $LASTEXITCODE)" }
+        $code = $LASTEXITCODE
         Update-SessionPath
+        if (& $find) { return }
+        throw "winget could not install $id (exit $code)"
+    }
+
+    # Git's bash: in Program Files, a per-user install, or beside whichever git is on PATH
+    # (git.exe sits in <Git>\cmd or <Git>\mingw64\bin, bash.exe in <Git>\bin).
+    function Find-Bash {
+        $spots = @((Join-Path $env:ProgramFiles 'Git\bin\bash.exe'),
+                   (Join-Path $env:LOCALAPPDATA 'Programs\Git\bin\bash.exe'))
+        $git = Get-Command git -ErrorAction SilentlyContinue
+        if ($git) {
+            $d = Split-Path $git.Source
+            foreach ($i in 1..3) { $spots += Join-Path $d 'bin\bash.exe'; $d = Split-Path $d }
+        }
+        $spots | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    }
+
+    # A Python 3 that runs: `py -3` (python.org), then `python` and `python3`, which may also be
+    # the Microsoft Store stub that only prints a hint. Returns its python.exe.
+    function Find-Python {
+        $ErrorActionPreference = 'Continue'      # a native program's stderr must not stop the script
+        $probe = 'import sys; print(sys.executable) if sys.version_info[0] == 3 else sys.exit(1)'
+        foreach ($c in 'py', 'python', 'python3') {
+            if (-not (Have $c)) { continue }
+            $out = if ($c -eq 'py') { & py -3 -c $probe 2>$null } else { & $c -c $probe 2>$null }
+            if ($LASTEXITCODE -eq 0 -and $out) { return @($out)[-1].Trim() }
+        }
     }
 
     if (-not (Have winget)) {
         throw 'winget is missing: install "App Installer" from the Microsoft Store, then run this again.'
     }
+    Update-SessionPath
 
-    $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
-    if (-not (Test-Path $bash)) { Install-Package 'Git.Git' }
+    Ensure 'Git' 'Git.Git' { Find-Bash }
+    $bash = Find-Bash
 
-    # `py` is the launcher a real Python installs; `python` alone may be the Microsoft Store stub.
-    if (-not (Have py)) { Install-Package 'Python.Python.3.13' }
-    $python = & py -3 -c 'import sys; print(sys.executable)'
-    if ($LASTEXITCODE -ne 0) { throw 'Python 3 is installed but `py -3` does not run.' }
+    Ensure 'Python 3' 'Python.Python.3.13' { Find-Python }
+    $python = Find-Python
     $env:Path = (Split-Path $python) + ';' + $env:Path
 
-    if (-not (Have gh)) { Install-Package 'GitHub.cli' }
+    Ensure 'GitHub CLI' 'GitHub.cli' { (Get-Command gh -ErrorAction SilentlyContinue).Source }
 
-    # Claude's installer puts claude.exe in ~\.local\bin but leaves that folder off PATH, so look
-    # for the file, and add the folder to the user's PATH once so new windows find `claude`.
+    # Claude Code, unless a claude is already here (native or from npm). Its installer puts
+    # claude.exe in ~\.local\bin but leaves that folder off PATH, so add it to the user's PATH
+    # once, and new windows find `claude`.
     $claudeBin = Join-Path $HOME '.local\bin'
-    if (-not (Test-Path (Join-Path $claudeBin 'claude.exe'))) {
+    if (Have claude) { Write-Host "Claude Code already here: $((Get-Command claude).Source)" }
+    else {
         Write-Host 'Installing Claude Code'
         Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression
     }
     $userPath = "$([Environment]::GetEnvironmentVariable('Path', 'User'))"
-    if (($userPath -split ';') -notcontains $claudeBin) {
+    if ((Test-Path (Join-Path $claudeBin 'claude.exe')) -and (($userPath -split ';') -notcontains $claudeBin)) {
         [Environment]::SetEnvironmentVariable('Path', ($userPath.TrimEnd(';') + ";$claudeBin").TrimStart(';'), 'User')
     }
     Update-SessionPath
+    $env:Path = (Split-Path $python) + ';' + $env:Path
 
     # Through cmd: Windows PowerShell turns a redirected native stderr into a terminating error.
     cmd /c 'gh auth status >nul 2>&1'
