@@ -3,7 +3,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/paisible/nord-install/main/install.sh | bash
 #
-# Installs what the Nord harness needs (git, Python 3, the GitHub CLI, Claude Code), signs you
+# Installs what the Nord harness needs (git, Python 3, the GitHub CLI, Node.js, Claude Code), signs you
 # in to GitHub in the browser, then runs the Nord installer from the private
 # Nord-Quantique/Nord-Context-Harness repository through that sign-in. Anything already
 # installed is left alone, so running it again is safe.
@@ -59,6 +59,16 @@ main() {
       ;;
     *) die "unsupported system $(uname -s); on Windows use install.ps1" ;;
   esac
+
+  # Node runs the pages' own code (artifact views, the OKR map, page and slide checks) and the Nord
+  # MCP; without it the install goes on, and nord doctor says how to add it
+  if ! have node; then
+    if have brew; then brew install node || true
+    elif have apt-get; then sudo apt-get install -y nodejs || true
+    elif have dnf; then sudo dnf install -y nodejs || true
+    else echo "Node.js not found: some Nord skills need it (https://nodejs.org)"
+    fi
+  fi
 
   if ! have claude; then
     echo "Installing Claude Code"

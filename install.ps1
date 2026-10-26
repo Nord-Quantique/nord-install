@@ -2,7 +2,7 @@
 #
 #   irm https://raw.githubusercontent.com/paisible/nord-install/main/install.ps1 | iex
 #
-# Installs what the Nord harness needs (Git for Windows, Python 3, the GitHub CLI, Claude Code),
+# Installs what the Nord harness needs (Git for Windows, Python 3, the GitHub CLI, Node.js, Claude Code),
 # signs you in to GitHub in the browser, then runs the Nord installer from the private
 # Nord-Quantique/Nord-Context-Harness repository through that sign-in. Anything already
 # installed (Git, Python, gh, Claude Code, wherever they are) is used as it is. A previous Nord
@@ -79,6 +79,9 @@
     $env:Path = (Split-Path $python) + ';' + $env:Path
 
     Ensure 'GitHub CLI' 'GitHub.cli' { (Get-Command gh -ErrorAction SilentlyContinue).Source }
+
+    # Node runs the pages' own code (artifact views, the OKR map, page and slide checks) and the Nord MCP
+    Ensure 'Node.js' 'OpenJS.NodeJS.LTS' { (Get-Command node -ErrorAction SilentlyContinue).Source }
 
     # Claude Code, unless a claude is already here (native or from npm). Its installer puts
     # claude.exe in ~\.local\bin but leaves that folder off PATH, so add it to the user's PATH
