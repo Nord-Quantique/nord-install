@@ -2,7 +2,7 @@
 
 One line in PowerShell installs everything Nord needs, signs you in to GitHub and installs the Nord
 harness. Then you set Nord up once in the Claude desktop app. This guide shows each screen on Windows 11
-and what to do on it. It takes about 15 minutes.
+and what to do on it. It takes about 5 minutes.
 
 **What you need**
 
