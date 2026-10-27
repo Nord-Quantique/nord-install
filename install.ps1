@@ -91,15 +91,26 @@
     $claudeBin = Join-Path $HOME '.local\bin'
     if (Have claude) { Write-Host "Claude Code already here: $((Get-Command claude).Source)" }
     else {
-        # its own installer ends on "Installation complete!", which read as if Nord were installed:
-        # its output is shown only when it fails
+        # its own installer ends on "Installation complete!", which read as if Nord were installed: its
+        # output is shown only when it fails. Its download can time out (27 Oct 2026), and its error must
+        # not stop this script before saying what to do, so it runs with errors caught, twice at most.
         Write-Host 'Installing Claude Code'
-        $said = & { Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression } *>&1 | Out-String
-        if (-not (Test-Path (Join-Path $claudeBin 'claude.exe'))) {
-            Write-Host $said
-            throw 'Claude Code did not install: its installer said the above.'
+        $exe = Join-Path $claudeBin 'claude.exe'
+        foreach ($try in 1, 2) {
+            $said = & {
+                $ErrorActionPreference = 'Continue'
+                try { Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression } catch { $_ }
+            } *>&1 | Out-String
+            if ((Test-Path $exe) -or $try -eq 2) { break }
+            Write-Host 'Claude Code did not download; trying once more'
         }
-        Write-Host "Claude Code installed: $(Join-Path $claudeBin 'claude.exe')"
+        if (-not (Test-Path $exe)) {
+            Write-Host $said
+            Write-Host 'Claude Code could not be installed (its installer said the above, often a download that timed out).' -ForegroundColor Red
+            Write-Host 'Run the same line again: what is installed already is kept.' -ForegroundColor Red
+            return
+        }
+        Write-Host "Claude Code installed: $exe"
     }
     $userPath = "$([Environment]::GetEnvironmentVariable('Path', 'User'))"
     if ((Test-Path (Join-Path $claudeBin 'claude.exe')) -and (($userPath -split ';') -notcontains $claudeBin)) {

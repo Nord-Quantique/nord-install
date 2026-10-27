@@ -72,11 +72,15 @@ main() {
   fi
 
   if ! have claude; then
-    # its own installer ends on "Installation complete!", which read as if Nord were installed:
-    # its output is shown only when it fails
+    # its own installer ends on "Installation complete!", which read as if Nord were installed: its
+    # output is shown only when it fails. Its download can time out (27 Oct 2026): twice at most.
     echo "Installing Claude Code"
-    said=$(curl -fsSL https://claude.ai/install.sh | bash 2>&1) || true
-    have claude || { printf '%s\n' "$said"; die "Claude Code did not install: its installer said the above"; }
+    for try in 1 2; do
+      said=$(curl -fsSL https://claude.ai/install.sh | bash 2>&1) || true
+      have claude || [ $try -eq 2 ] && break
+      echo "Claude Code did not download; trying once more"
+    done
+    have claude || { printf '%s\n' "$said"; die "Claude Code could not be installed (its installer said the above, often a download that timed out). Run the same line again: what is installed already is kept."; }
     echo "Claude Code installed: $(command -v claude)"
   fi
 
