@@ -1,7 +1,7 @@
 #!/bin/bash
 # Nord installer for macOS and Linux. In a terminal:
 #
-#   curl -fsSL https://raw.githubusercontent.com/paisible/nord-install/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Nord-Quantique/nord-install/main/install.sh | bash
 #
 # Installs what the Nord harness needs (git, Python 3, the GitHub CLI, Node.js, Claude Code), signs you
 # in to GitHub in the browser, then runs the Nord installer from the private

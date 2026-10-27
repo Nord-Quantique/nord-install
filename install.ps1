@@ -1,6 +1,6 @@
 # Nord installer for Windows. In PowerShell:
 #
-#   irm https://raw.githubusercontent.com/paisible/nord-install/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/Nord-Quantique/nord-install/main/install.ps1 | iex
 #
 # Installs what the Nord harness needs (Git for Windows, Python 3, the GitHub CLI, Node.js, Claude Code),
 # signs you in to GitHub in the browser, then runs the Nord installer from the private
