@@ -37,6 +37,7 @@ install_gh_release() {
 # Everything runs from main, called on the last line: piped into bash, the whole script is read
 # before any step runs, so a command that reads stdin (brew, apt) cannot swallow the rest of it.
 main() {
+  printf '\n\033[36m%s\033[0m\n' "Step 1 of 2: the tools Nord needs (git, Python 3, GitHub CLI, Node.js, Claude Code) and your GitHub sign-in"
   case "$(uname -s)" in
     Darwin)
       # /usr/bin/git and python3 are stubs until Apple's Command Line Tools are installed.
@@ -71,8 +72,12 @@ main() {
   fi
 
   if ! have claude; then
+    # its own installer ends on "Installation complete!", which read as if Nord were installed:
+    # its output is shown only when it fails
     echo "Installing Claude Code"
-    curl -fsSL https://claude.ai/install.sh | bash
+    said=$(curl -fsSL https://claude.ai/install.sh | bash 2>&1) || true
+    have claude || { printf '%s\n' "$said"; die "Claude Code did not install: its installer said the above"; }
+    echo "Claude Code installed: $(command -v claude)"
   fi
 
   if ! gh auth status >/dev/null 2>&1; then
@@ -81,7 +86,8 @@ main() {
     gh auth login --web --git-protocol https --hostname github.com </dev/tty
   fi
 
-  echo "Running the Nord installer"
+  printf '\033[32m%s\033[0m\n\n' "Step 1 of 2 done: the tools are installed and GitHub is signed in."
+  printf '\033[36m%s\033[0m\n' "Step 2 of 2: installing the Nord harness (from Nord-Quantique/Nord-Context-Harness)"
   gh api "repos/Nord-Quantique/Nord-Context-Harness/contents/install.sh?ref=${NORD_REF:-main}" \
     -H "Accept: application/vnd.github.raw" | bash
 }

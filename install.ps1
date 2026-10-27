@@ -70,6 +70,8 @@
         throw 'winget is missing: install "App Installer" from the Microsoft Store, then run this again.'
     }
     Update-SessionPath
+    Write-Host ''
+    Write-Host 'Step 1 of 2: the tools Nord needs (Git, Python 3, GitHub CLI, Node.js, Claude Code) and your GitHub sign-in' -ForegroundColor Cyan
 
     Ensure 'Git' 'Git.Git' { Find-Bash }
     $bash = Find-Bash
@@ -89,8 +91,15 @@
     $claudeBin = Join-Path $HOME '.local\bin'
     if (Have claude) { Write-Host "Claude Code already here: $((Get-Command claude).Source)" }
     else {
+        # its own installer ends on "Installation complete!", which read as if Nord were installed:
+        # its output is shown only when it fails
         Write-Host 'Installing Claude Code'
-        Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression
+        $said = & { Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression } *>&1 | Out-String
+        if (-not (Test-Path (Join-Path $claudeBin 'claude.exe'))) {
+            Write-Host $said
+            throw 'Claude Code did not install: its installer said the above.'
+        }
+        Write-Host "Claude Code installed: $(Join-Path $claudeBin 'claude.exe')"
     }
     $userPath = "$([Environment]::GetEnvironmentVariable('Path', 'User'))"
     if ((Test-Path (Join-Path $claudeBin 'claude.exe')) -and (($userPath -split ';') -notcontains $claudeBin)) {
@@ -111,7 +120,9 @@
     # a PowerShell window may be anywhere, an administrator one in C:\Windows\system32.
     # Single quotes inside: Windows PowerShell drops embedded double quotes when it passes an
     # argument to a program, which would split the Accept header and fetch JSON, not the script.
-    Write-Host 'Running the Nord installer'
+    Write-Host 'Step 1 of 2 done: the tools are installed and GitHub is signed in.' -ForegroundColor Green
+    Write-Host ''
+    Write-Host 'Step 2 of 2: installing the Nord harness (from Nord-Quantique/Nord-Context-Harness)' -ForegroundColor Cyan
     $ref = if ($env:NORD_REF) { $env:NORD_REF } else { 'main' }
     if ($ref -notmatch '^[\w./-]+$') { throw "NORD_REF '$ref' is not a branch name." }
     & $bash -c "cd ~ && gh api 'repos/Nord-Quantique/Nord-Context-Harness/contents/install.sh?ref=$ref' -H 'Accept: application/vnd.github.raw' | bash"
